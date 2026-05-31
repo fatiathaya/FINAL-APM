@@ -1,0 +1,282 @@
+require('dotenv').config();
+
+const express = require('express');
+const path = require('path');
+const axios = require('axios');
+const { testConnection } = require('./config/db');
+const {
+    savePredictionSession,
+    getPredictionLogs,
+    getPredictionSummary,
+    getPredictionLogById,
+    mapRecordToResultView
+} = require('./config/patientRepository');
+
+const app = express();
+
+// Python API URL
+const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://localhost:5000';
+
+// Set EJS view engine and views directory
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// Middleware
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Home route
+app.get('/', (req, res) => {
+    res.render('index');
+});
+
+// Prediction form route
+app.get('/predict', (req, res) => {
+    res.render('predict');
+});
+
+// Redirect GET requests on result to predict
+app.get('/result', (req, res) => {
+    res.redirect('/predict');
+});
+
+// Handle prediction submission
+app.post('/result', async (req, res) => {
+    try {
+        // Helper to safely parse numbers without overriding falsy 0 values
+        const parseOptionalInt = (val, defaultVal) => {
+            if (val === undefined || val === null || val === '') return defaultVal;
+            const parsed = parseInt(val);
+            return isNaN(parsed) ? defaultVal : parsed;
+        };
+
+        const parseOptionalFloat = (val, defaultVal) => {
+            if (val === undefined || val === null || val === '') return defaultVal;
+            const parsed = parseFloat(val);
+            return isNaN(parsed) ? defaultVal : parsed;
+        };
+
+        // Retrieve and sanitize inputs - sesuai dengan 22 fitur model
+        const age = parseOptionalInt(req.body.age, 65);
+        const gender = parseOptionalInt(req.body.gender, 0);
+        const bmi = parseOptionalFloat(req.body.bmi, 23.5);
+        const smoking = parseOptionalInt(req.body.smoking, 0);
+        const alcoholConsumption = parseOptionalFloat(req.body.alcohol, 0);
+        const physicalActivity = parseOptionalFloat(req.body.physicalActivity, 5.0);
+        const dietQuality = parseOptionalFloat(req.body.dietQuality, 6.0);
+        const sleepQuality = parseOptionalFloat(req.body.sleepQuality, 7.0);
+        const familyHistoryAlzheimers = parseOptionalInt(req.body.familyHistory, 0);
+        const cardiovascularDisease = parseOptionalInt(req.body.cardiovascular, 0);
+        const diabetes = parseOptionalInt(req.body.diabetes, 0);
+        const depression = parseOptionalInt(req.body.depression, 0);
+        const headInjury = parseOptionalInt(req.body.headInjury, 0);
+        const hypertension = parseOptionalInt(req.body.hypertension, 0);
+        const systolicBP = parseOptionalInt(req.body.systolicBP, 120);
+        const diastolicBP = parseOptionalInt(req.body.diastolicBP, 80);
+        const cholesterolTotal = parseOptionalFloat(req.body.cholesterolTotal, 200);
+        const mmse = parseOptionalInt(req.body.mmse, 27);
+        const functionalAssessment = parseOptionalFloat(req.body.functionalAssessment, 7.8);
+        const memoryComplaints = parseOptionalInt(req.body.memoryComplaints, 0);
+        const behavioralProblems = parseOptionalInt(req.body.behavioralProblems, 0);
+        const adl = parseOptionalFloat(req.body.adl, 8.5);
+
+        // Prepare data untuk Python API (sesuai urutan fitur model)
+        const predictionData = {
+            Age: age,
+            Gender: gender,
+            BMI: bmi,
+            Smoking: smoking,
+            AlcoholConsumption: alcoholConsumption,
+            PhysicalActivity: physicalActivity,
+            DietQuality: dietQuality,
+            SleepQuality: sleepQuality,
+            FamilyHistoryAlzheimers: familyHistoryAlzheimers,
+            CardiovascularDisease: cardiovascularDisease,
+            Diabetes: diabetes,
+            Depression: depression,
+            HeadInjury: headInjury,
+            Hypertension: hypertension,
+            SystolicBP: systolicBP,
+            DiastolicBP: diastolicBP,
+            CholesterolTotal: cholesterolTotal,
+            MMSE: mmse,
+            FunctionalAssessment: functionalAssessment,
+            MemoryComplaints: memoryComplaints,
+            BehavioralProblems: behavioralProblems,
+            ADL: adl
+        };
+
+        // Call Python API untuk prediksi
+        const response = await axios.post(`${PYTHON_API_URL}/predict`, predictionData, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            timeout: 10000 // 10 second timeout
+        });
+
+        const predictionResult = response.data;
+
+        if (!predictionResult.success) {
+            throw new Error(predictionResult.error || 'Prediction failed');
+        }
+
+        // Extract hasil prediksi
+        const probability = predictionResult.probability;
+        const probability_percentage = predictionResult.probability_percentage;
+        const isHighRisk = predictionResult.is_high_risk;
+        const statusText = predictionResult.status_text;
+
+        // Simpan input dan hasil prediksi ke MySQL
+        try {
+            await savePredictionSession(
+                {
+                    age,
+                    gender,
+                    bmi,
+                    smoking,
+                    alcoholConsumption,
+                    physicalActivity,
+                    dietQuality,
+                    sleepQuality,
+                    familyHistoryAlzheimers,
+                    cardiovascularDisease,
+                    diabetes,
+                    depression,
+                    headInjury,
+                    hypertension,
+                    systolicBP,
+                    diastolicBP,
+                    cholesterolTotal,
+                    mmse,
+                    functionalAssessment,
+                    memoryComplaints,
+                    behavioralProblems,
+                    adl
+                },
+                predictionResult
+            );
+        } catch (dbError) {
+            console.error('Database save error:', dbError.message);
+        }
+
+        // SVG Gauge circumference setup (2 * pi * 95)
+        const circumference = 596.9;
+        const dashoffset = circumference * (1 - probability);
+
+        // Render result page dengan data prediksi
+        res.render('result', {
+            age,
+            gender,
+            bmi,
+            sleepQuality,
+            diabetes,
+            hypertension,
+            cardiovascular: cardiovascularDisease,
+            depression,
+            headInjury,
+            familyHistory: familyHistoryAlzheimers,
+            systolicBP,
+            diastolicBP,
+            mmse,
+            adl,
+            functionalAssessment,
+            memoryComplaints,
+            probability,
+            probability_percentage,
+            isHighRisk,
+            statusText,
+            circumference,
+            dashoffset
+        });
+
+    } catch (error) {
+        console.error('Prediction error:', error.message);
+
+        // Jika Python API tidak tersedia, tampilkan error page
+        res.status(500).render('error', {
+            error: 'Prediction service unavailable',
+            message: error.message,
+            details: 'Please make sure the Python API is running on port 5000'
+        });
+    }
+});
+
+// Halaman riwayat prediksi
+app.get('/database', async (req, res) => {
+    try {
+        const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const limit = 15;
+
+        const summary = await getPredictionSummary();
+        const { rows: records, total } = await getPredictionLogs({ page, limit });
+        const totalPages = Math.max(1, Math.ceil(total / limit));
+
+        res.render('database', {
+            page,
+            limit,
+            summary,
+            records,
+            total,
+            totalPages
+        });
+    } catch (error) {
+        res.status(500).render('error', {
+            error: 'Database tidak tersedia',
+            message: error.message,
+            details: 'Pastikan MySQL XAMPP sudah berjalan dan database neurocare_ai sudah di-setup.'
+        });
+    }
+});
+
+// Detail hasil prediksi dari riwayat
+app.get('/database/:id', async (req, res) => {
+    try {
+        const logId = parseInt(req.params.id, 10);
+        if (Number.isNaN(logId) || logId < 1) {
+            return res.redirect('/database');
+        }
+
+        const record = await getPredictionLogById(logId);
+        if (!record) {
+            return res.status(404).render('error', {
+                error: 'Prediksi tidak ditemukan',
+                message: `Riwayat prediksi #${logId} tidak ada di database.`,
+                details: 'Data mungkin telah dihapus atau ID tidak valid.'
+            });
+        }
+
+        const viewData = mapRecordToResultView(record);
+        if (!viewData) {
+            return res.status(404).render('error', {
+                error: 'Data pasien tidak tersedia',
+                message: `Data klinis untuk prediksi #${logId} tidak ditemukan.`,
+                details: 'Record pasien terkait mungkin sudah dihapus dari database.'
+            });
+        }
+
+        const returnPage = Math.max(1, parseInt(req.query.page, 10) || 1);
+        res.render('result', {
+            ...viewData,
+            returnPage
+        });
+    } catch (error) {
+        res.status(500).render('error', {
+            error: 'Database tidak tersedia',
+            message: error.message,
+            details: 'Pastikan MySQL XAMPP sudah berjalan dan database neurocare_ai sudah di-setup.'
+        });
+    }
+});
+
+// Start Express Server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, async () => {
+    console.log(`Server is running on port ${PORT}`);
+    try {
+        await testConnection();
+        console.log('MySQL connected: neurocare_ai');
+    } catch (error) {
+        console.warn('MySQL not connected:', error.message);
+        console.warn('Jalankan database\\setup_db.bat setelah Start MySQL di XAMPP.');
+    }
+});
