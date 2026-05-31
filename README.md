@@ -1,270 +1,292 @@
-# NeuroCare AI - Alzheimer's Prediction System
+# NeuroCare AI — Sistem Prediksi Risiko Alzheimer
 
-## Overview
-Web application for Alzheimer's disease risk prediction using XGBoost machine learning model. The system consists of:
-- **Frontend**: Node.js/Express web server with EJS templates
-- **Backend**: Flask Python API serving the XGBoost model
-- **Model**: Trained XGBoost classifier with 22 clinical features
+Aplikasi web untuk skrining risiko penyakit Alzheimer menggunakan model **XGBoost** (22 fitur klinis). Sistem terdiri dari:
 
-## System Architecture
+| Komponen | Teknologi | Port default |
+|----------|-----------|--------------|
+| Antarmuka web | Node.js + Express + EJS | `3000` |
+| API prediksi ML | Python + Flask | `5000` |
+| Penyimpanan riwayat | MySQL (XAMPP) | `3306` |
+
 ```
-User Browser → Node.js Server (Port 3000) → Python Flask API (Port 5000) → XGBoost Model
+Browser → Express (3000) → Flask API (5000) → model_alzheimer_final (2).pkl
+                ↓
+            MySQL (neurocare_ai)
 ```
 
-## Prerequisites
-- **Node.js** (v14 or higher)
-- **Python** (v3.8 or higher)
-- **pip** (Python package manager)
+---
 
-## Installation
+## Persyaratan
 
-### 1. Install Node.js Dependencies
+Pastikan sudah terpasang di komputer Anda:
+
+- **Node.js** v14 atau lebih baru — [https://nodejs.org](https://nodejs.org)
+- **Python** 3.8 atau lebih baru — [https://python.org](https://python.org)
+- **XAMPP** (MySQL) — [https://www.apachefriends.org](https://www.apachefriends.org)  
+  *(Wajib jika ingin fitur riwayat prediksi & data pasien)*
+- File model: `model_alzheimer_final (2).pkl` (harus ada di folder root proyek)
+
+Cek instalasi:
+
+```cmd
+node -v
+npm -v
+python --version
+pip --version
+```
+
+---
+
+## 1. Instalasi (sekali saja)
+
+Buka **Command Prompt** atau **PowerShell**, masuk ke folder proyek:
+
+```cmd
+cd "C:\path\ke\folder\APM"
+```
+
+### 1.1 Dependensi Node.js
+
 ```cmd
 npm install
 ```
 
-### 2. Install Python Dependencies
+### 1.2 Dependensi Python
+
 ```cmd
 pip install -r requirements.txt
 ```
 
-## Running the Application
+### 1.3 Database MySQL (opsional, untuk riwayat prediksi)
 
-### Option 1: Manual Startup (Two Terminals)
+1. Buka **XAMPP Control Panel** → klik **Start** pada **MySQL** (dan **Apache** jika ingin phpMyAdmin).
+2. Jalankan setup database:
 
-**Terminal 1 - Start Python API:**
 ```cmd
-python predict_api.py
-```
-Expected output:
-```
-🚀 Starting Flask API on port 5000...
-✓ Model berhasil dimuat!
-✓ Fitur yang dibutuhkan: ['Age', 'Gender', 'BMI', ...]
+npm run db:setup
 ```
 
-**Terminal 2 - Start Node.js Server:**
-```cmd
-npm start
-```
-Expected output:
-```
-Server is running on port 3000
+Atau double-click file `database\setup_db.bat`.
+
+Script ini akan:
+- Membuat database `neurocare_ai` dan tabel
+- Mengimpor data awal RS Hermina dari CSV
+
+> **Catatan:** Setup memakai user MySQL `root` tanpa password (default XAMPP). Jika MySQL Anda memakai password, buat file `.env` (lihat bagian Konfigurasi).
+
+---
+
+## 2. Konfigurasi (opsional)
+
+Buat file `.env` di folder root jika port atau database berbeda dari default:
+
+```env
+# Server web Node.js
+PORT=3000
+PYTHON_API_URL=http://localhost:5000
+
+# MySQL (XAMPP)
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=neurocare_ai
 ```
 
-### Option 2: Quick Start Script
+---
 
-Create `start.bat` file:
-```batch
-@echo off
-echo Starting NeuroCare AI System...
-echo.
-echo Starting Python API on port 5000...
-start cmd /k "python predict_api.py"
-timeout /t 3 /nobreak >nul
-echo Starting Node.js Server on port 3000...
-start cmd /k "npm start"
-echo.
-echo Both servers are starting...
-echo Python API: http://localhost:5000
-echo Web Application: http://localhost:3000
-```
+## 3. Cara menjalankan sistem
 
-Then run:
+**Urutan penting:** MySQL (jika dipakai) → **Python API** → **Server web**
+
+### Opsi A — Cepat (Windows, disarankan)
+
+Double-click **`start.bat`** di folder proyek.
+
+Atau dari terminal:
+
 ```cmd
 start.bat
 ```
 
-## Accessing the Application
+Script akan:
+1. Membuka jendela terminal untuk Flask API (port 5000)
+2. Menunggu 3 detik
+3. Membuka jendela terminal untuk Express (port 3000)
+4. Membuka browser ke `http://localhost:3000`
 
-1. **Web Interface**: http://localhost:3000
-2. **Python API Health Check**: http://localhost:5000/health
-3. **API Features List**: http://localhost:5000/features
+Untuk menghentikan: tutup kedua jendela terminal (Python & Node.js).
 
-## Model Features (22 Required Inputs)
+---
 
-The XGBoost model requires exactly 22 features in this order:
+### Opsi B — Manual (dua terminal)
 
-1. **Age** (50-90 years)
-2. **Gender** (0=Female, 1=Male)
-3. **BMI** (15.0-40.0)
-4. **Smoking** (0=No, 1=Yes)
-5. **AlcoholConsumption** (0-1 scale)
-6. **PhysicalActivity** (0-10 hours/week)
-7. **DietQuality** (1-10 scale)
-8. **SleepQuality** (1-10 scale)
-9. **FamilyHistoryAlzheimers** (0=No, 1=Yes)
-10. **CardiovascularDisease** (0=No, 1=Yes)
-11. **Diabetes** (0=No, 1=Yes)
-12. **Depression** (0=No, 1=Yes)
-13. **HeadInjury** (0=No, 1=Yes)
-14. **Hypertension** (0=No, 1=Yes)
-15. **SystolicBP** (90-180 mmHg)
-16. **DiastolicBP** (60-120 mmHg)
-17. **CholesterolTotal** (150-300 mg/dL)
-18. **MMSE** (0-30 score)
-19. **FunctionalAssessment** (0-10 scale)
-20. **MemoryComplaints** (0=No, 1=Yes)
-21. **BehavioralProblems** (0=No, 1=Yes)
-22. **ADL** (0-10 scale)
+**Terminal 1 — API Python (jalankan dulu, biarkan terbuka):**
 
-## API Endpoints
-
-### Python Flask API (Port 5000)
-
-#### GET /health
-Health check endpoint
-```json
-{
-  "status": "healthy",
-  "model_loaded": true,
-  "features": ["Age", "Gender", ...]
-}
+```cmd
+cd "C:\path\ke\folder\APM"
+python predict_api.py
 ```
 
-#### GET /features
-Get list of required features
-```json
-{
-  "success": true,
-  "features": ["Age", "Gender", ...],
-  "total_features": 22
-}
+Output yang diharapkan:
+
+```
+✓ Model berhasil dimuat!
+🚀 Starting Flask API on port 5000...
 ```
 
-#### POST /predict
-Make prediction
-**Request:**
-```json
-{
-  "Age": 65,
-  "Gender": 0,
-  "BMI": 23.5,
-  "Smoking": 0,
-  "AlcoholConsumption": 0,
-  "PhysicalActivity": 5.0,
-  "DietQuality": 6.0,
-  "SleepQuality": 7.0,
-  "FamilyHistoryAlzheimers": 0,
-  "CardiovascularDisease": 0,
-  "Diabetes": 0,
-  "Depression": 0,
-  "HeadInjury": 0,
-  "Hypertension": 0,
-  "SystolicBP": 120,
-  "DiastolicBP": 80,
-  "CholesterolTotal": 200,
-  "MMSE": 27,
-  "FunctionalAssessment": 7.8,
-  "MemoryComplaints": 0,
-  "BehavioralProblems": 0,
-  "ADL": 8.5
-}
+**Terminal 2 — Server web:**
+
+```cmd
+cd "C:\path\ke\folder\APM"
+npm start
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "prediction": 0,
-  "probability": 0.234,
-  "probability_percentage": 23.4,
-  "is_high_risk": false,
-  "status_text": "Low Risk Alzheimer"
-}
+Output yang diharapkan:
+
+```
+Server is running on port 3000
+MySQL connected: neurocare_ai
 ```
 
-## Troubleshooting
+*(Baris MySQL bisa berupa peringatan jika database belum di-setup — prediksi tetap bisa jalan, riwayat tidak tersimpan.)*
 
-### Python API Not Starting
-- **Error**: `ModuleNotFoundError: No module named 'flask'`
-  - **Solution**: Run `pip install -r requirements.txt`
+---
 
-- **Error**: `FileNotFoundError: model_alzheimer_final (1).pkl`
-  - **Solution**: Ensure the model file is in the project root directory
+### Opsi C — Mode pengembangan
 
-### Node.js Server Errors
-- **Error**: `Cannot find module 'axios'`
-  - **Solution**: Run `npm install`
+Terminal 1:
 
-- **Error**: `ECONNREFUSED localhost:5000`
-  - **Solution**: Make sure Python API is running first
+```cmd
+python predict_api.py
+```
 
-### Port Already in Use
-- **Error**: `Port 3000 is already in use`
-  - **Solution**: Change port in server.js or kill the process using the port
+Terminal 2 (auto-restart saat file diubah):
 
-- **Error**: `Port 5000 is already in use`
-  - **Solution**: Change port in predict_api.py or kill the process
-
-## Development
-
-### Run in Development Mode
 ```cmd
 npm run dev
 ```
-This uses nodemon for auto-restart on file changes.
 
-### Build Tailwind CSS
-```cmd
-npm run build:css
-```
+Jika mengubah CSS Tailwind:
 
-### Watch Tailwind CSS (Development)
 ```cmd
 npm run watch:css
 ```
 
-## Project Structure
+---
+
+## 4. Mengakses aplikasi
+
+| Halaman | URL | Fungsi |
+|---------|-----|--------|
+| Beranda | http://localhost:3000 | Landing page |
+| Prediksi | http://localhost:3000/predict | Form skrining (wizard) |
+| Riwayat | http://localhost:3000/database | Daftar prediksi tersimpan |
+| Cek API ML | http://localhost:5000/health | Status model Python |
+| phpMyAdmin | http://localhost/phpmyadmin | Kelola database (XAMPP) |
+
+### Alur penggunaan
+
+1. Pastikan **Terminal Python** dan **Terminal Node.js** masih berjalan.
+2. Buka http://localhost:3000 → menu **Prediksi** / **Screening**.
+3. Isi form (22 variabel klinis) → **Submit**.
+4. Lihat hasil risiko di halaman hasil.
+5. Buka **Riwayat** (`/database`) untuk melihat prediksi yang tersimpan *(butuh MySQL)*.
+
+---
+
+## 5. Verifikasi sistem berjalan
+
+| Cek | Cara | Hasil OK |
+|-----|------|----------|
+| Model ML | Buka http://localhost:5000/health | `"model_loaded": true` |
+| Web | Buka http://localhost:3000 | Halaman beranda tampil |
+| Database | Lihat log terminal Node.js | `MySQL connected: neurocare_ai` |
+
+---
+
+## 6. Pemecahan masalah
+
+### Python API tidak jalan
+
+| Gejala | Solusi |
+|--------|--------|
+| `ModuleNotFoundError: flask` | `pip install -r requirements.txt` |
+| `Error loading model` / file tidak ditemukan | Pastikan `model_alzheimer_final (2).pkl` ada di folder root |
+| Port 5000 sudah dipakai | Tutup proses lain di port 5000, atau set `PORT=5001` lalu sesuaikan `PYTHON_API_URL` di `.env` |
+
+### Server Node.js error
+
+| Gejala | Solusi |
+|--------|--------|
+| `Cannot find module 'axios'` | `npm install` |
+| `ECONNREFUSED localhost:5000` | Jalankan `python predict_api.py` **sebelum** `npm start` |
+| Port 3000 sudah dipakai | Ubah `PORT=3001` di `.env` |
+
+### Database / riwayat tidak muncul
+
+| Gejala | Solusi |
+|--------|--------|
+| `MySQL not connected` | Start MySQL di XAMPP |
+| Database belum ada | `npm run db:setup` |
+| Password MySQL tidak kosong | Isi `DB_PASSWORD` di file `.env` |
+
+### Prediksi gagal di browser
+
+1. Cek http://localhost:5000/health — harus `healthy`.
+2. Pastikan kedua server (Python + Node) masih aktif.
+3. Lihat pesan error di halaman atau di terminal.
+
+---
+
+## 7. Perintah npm berguna
+
+```cmd
+npm start          # Jalankan server web (production)
+npm run dev        # Server web + auto-reload (nodemon)
+npm run db:setup   # Setup database MySQL + seed data
+npm run db:seed    # Import ulang data Hermina saja
+npm run build:css  # Compile Tailwind CSS sekali
+npm run watch:css  # Compile Tailwind otomatis saat edit
+```
+
+---
+
+## 8. Struktur proyek
+
 ```
 APM/
-├── views/
-│   ├── index.ejs          # Home page
-│   ├── predict.ejs        # Prediction form (22 inputs)
-│   ├── result.ejs         # Results display
-│   └── error.ejs          # Error page
-├── public/
-│   ├── css/
-│   │   └── style.css      # Compiled Tailwind CSS
-│   ├── js/
-│   │   └── main.js        # Frontend JavaScript
-│   └── images/
-├── server.js              # Node.js Express server
-├── predict_api.py         # Flask Python API
-├── model_alzheimer_final (1).pkl  # XGBoost model
-├── requirements.txt       # Python dependencies
-├── package.json           # Node.js dependencies
-└── README.md             # This file
+├── config/                 # Koneksi MySQL & repository
+├── database/
+│   ├── neurocare_ai.sql    # Skema database
+│   ├── setup_db.bat        # Setup otomatis (XAMPP)
+│   └── seed_hermina.js     # Import data CSV
+├── public/                 # CSS, JS, gambar
+├── views/                  # Template EJS (halaman web)
+├── server.js               # Server Express
+├── predict_api.py          # API Flask + model ML
+├── model_alzheimer_final (2).pkl   # Model XGBoost (wajib)
+├── requirements.txt        # Paket Python
+├── package.json            # Paket Node.js
+├── start.bat               # Jalankan semua server (Windows)
+└── README.md
 ```
 
-## Testing the Integration
+---
 
-1. **Start both servers** (Python API + Node.js)
-2. **Open browser**: http://localhost:3000
-3. **Navigate to**: Prediction page
-4. **Fill the form** with test data
-5. **Submit** and verify results display correctly
+## 9. Model — 22 fitur input
 
-### Test Data Example
-- Age: 70
-- Gender: Male
-- BMI: 25.0
-- MMSE: 24
-- All other fields: Use default values
+Model membutuhkan 22 variabel klinis (urutan tetap): Age, Gender, BMI, Smoking, AlcoholConsumption, PhysicalActivity, DietQuality, SleepQuality, FamilyHistoryAlzheimers, CardiovascularDisease, Diabetes, Depression, HeadInjury, Hypertension, SystolicBP, DiastolicBP, CholesterolTotal, MMSE, FunctionalAssessment, MemoryComplaints, BehavioralProblems, ADL.
 
-Expected: Risk percentage and status displayed on result page
+Detail API: `GET /features` dan `POST /predict` di http://localhost:5000
 
-## Security Notes
-- Input validation is performed on both client and server side
-- API timeout set to 10 seconds
-- No data is permanently stored
-- All processing is done locally
+---
 
-## Credits
-- **Institution**: Universitas Andalas
-- **Faculty**: Fakultas Teknologi Informasi
-- **Team**: Kelompok APM
-- **Year**: 2026
+## Kredit
 
-## License
-Educational project for academic purposes.
+- **Institusi:** Universitas Andalas  
+- **Fakultas:** Teknologi Informasi  
+- **Tim:** Kelompok APM  
+- **Tahun:** 2026  
+
+Proyek akademik — bukan untuk diagnosis medis definitif.
